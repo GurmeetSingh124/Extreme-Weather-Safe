@@ -175,25 +175,29 @@
   display: grid;
   place-items: center;
   background: var(--sih-surface);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 2px solid var(--c);
   color: var(--c);
   transform: translate(-50%, -50%);
   cursor: pointer;
   z-index: 4;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent), 0 3px 10px rgba(0, 0, 0, 0.6);
 }
 .sih-marker.sel {
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 30%, transparent);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--c) 70%, transparent), 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent);
   animation: sih-pulse 2.4s ease-in-out infinite;
 }
 @keyframes sih-pulse {
-  50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--c) 8%, transparent); }
+  50% { box-shadow: 0 0 36px color-mix(in srgb, var(--c) 85%, transparent), 0 0 0 8px color-mix(in srgb, var(--c) 15%, transparent); }
 }
 
 /* Only the corridor canvas is blurred — never the map itself. */
-.sih-corridor {
+.sih-corridor, .sih-corridor-canvas {
   position: absolute;
   pointer-events: none;
-  filter: blur(12px);
+  filter: blur(14px);
+  -webkit-filter: blur(14px);
   animation: sih-breathe 4s ease-in-out infinite;
   z-index: 1;
 }

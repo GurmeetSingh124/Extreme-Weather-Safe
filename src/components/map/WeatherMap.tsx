@@ -142,16 +142,22 @@ export const WeatherMap = memo(function WeatherMap() {
     const gen = (genRefSeq.current += 1);
 
     (async () => {
-      for (const layer of active) {
-        await new Promise((r) => setTimeout(r, 0));
-        if (cancelled || gen !== genRefSeq.current) return;
-        const grid = await api.field(layer, rounded, events);
-        if (cancelled || gen !== genRefSeq.current) return;
-        engineRef.current?.setField(layer, grid);
-        if (layer === 'wind') engineRef.current?.setWindField(await api.wind(rounded, events));
-      }
+      await Promise.all(
+        active.map(async (layer) => {
+          const grid = await api.field(layer, rounded, events);
+          if (cancelled || gen !== genRefSeq.current) return;
+          engineRef.current?.setField(layer, grid);
+          if (layer === 'wind') {
+            const w = await api.wind(rounded, events);
+            if (!cancelled && gen === genRefSeq.current) engineRef.current?.setWindField(w);
+          }
+        })
+      );
       if (cancelled || gen !== genRefSeq.current) return;
-      if (layers.wind && !active.includes('wind')) engineRef.current?.setWindField(await api.wind(rounded, events));
+      if (layers.wind && !active.includes('wind')) {
+        const w = await api.wind(rounded, events);
+        if (!cancelled && gen === genRefSeq.current) engineRef.current?.setWindField(w);
+      }
     })();
 
     return () => {

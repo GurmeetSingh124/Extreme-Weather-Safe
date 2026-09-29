@@ -1,5 +1,5 @@
 import { loadGoogleMaps, GoogleMapsError, type MapsApi } from '../../lib/googleMaps';
-import { BOUNDS, rasterize, NX, NY, type Grid, type VecField } from '../../data/fields';
+import { BOUNDS, rasterize, sampleVec, NX, NY, type Grid, type VecField } from '../../data/fields';
 import { CAT_META, SEV_META, clamp } from '../../lib/utils';
 import { INDIA_CENTER, INDIA_ZOOM } from '../../lib/design';
 import { getWeatherIconSvgString } from '../common/WeatherIcons';
@@ -106,6 +106,11 @@ export class GoogleMapEngine {
   private overlays = new Map<LayerId, OverlayRec>();
   private wind: { canvas: HTMLCanvasElement; field: VecField | null } | null = null;
   private pendingWind: VecField | null = null;
+  private windParticles: { lon: number; lat: number; age: number; maxAge: number; speed: number; trail: { x: number; y: number }[] }[] = [];
+  private windRafId = 0;
+  private tileSliceCanvas: HTMLCanvasElement = document.createElement('canvas');
+  private tileCache = new Map<string, string>();
+  private corridorCanvas: HTMLCanvasElement | null = null;
 
   constructor(container: HTMLElement, cb: EngineCallbacks) {
     this.container = container;
@@ -147,6 +152,11 @@ export class GoogleMapEngine {
     });
 
     this.initNativeOverlay();
+    const cCanvas = document.createElement('canvas');
+    cCanvas.className = 'sih-corridor-canvas';
+    this.container.appendChild(cCanvas);
+    this.corridorCanvas = cCanvas;
+
     this.attachListeners();
     this.buildOverlays();
     void this.loadStates();
@@ -288,8 +298,8 @@ export class GoogleMapEngine {
 
     for (const id of RASTER_LAYERS) {
       const canvas = document.createElement('canvas');
-      canvas.width = 1024;
-      canvas.height = 1024;
+      canvas.width = 512;
+      canvas.height = 512;
       const type = new api.ImageMapType({
         name: id,
         tileSize: new api.Size(TILE, TILE),
@@ -312,6 +322,10 @@ export class GoogleMapEngine {
     const n = Math.pow(2, zoom);
     if (coord.x < 0 || coord.y < 0 || coord.x >= n || coord.y >= n) return BLANK;
 
+    const cacheKey = `${id}_${zoom}_${coord.x}_${coord.y}`;
+    const hit = this.tileCache.get(cacheKey);
+    if (hit) return hit;
+
     const lon0 = (coord.x / n) * 360 - 180;
     const lon1 = ((coord.x + 1) / n) * 360 - 180;
     const latTop = mercLat(coord.y / n);
@@ -326,20 +340,26 @@ export class GoogleMapEngine {
 
     const w = Math.max(1, Math.round(sx1 - sx));
     const h = Math.max(1, Math.round(sy1 - sy));
-    const out = document.createElement('canvas');
+    const out = this.tileSliceCanvas;
     out.width = TILE;
     out.height = TILE;
     const ctx = out.getContext('2d')!;
+    ctx.clearRect(0, 0, TILE, TILE);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = 'medium';
     ctx.drawImage(canvas, sx, sy, w, h, 0, 0, TILE, TILE);
-    return out.toDataURL('image/png');
+    const url = out.toDataURL('image/png');
+    this.tileCache.set(cacheKey, url);
+    return url;
   }
 
   setField(layer: LayerId, grid: Grid) {
     if (!this.ready || !this.overlays.has(layer)) return;
     const rec = this.overlays.get(layer)!;
     rec.grid = grid;
+    for (const k of this.tileCache.keys()) {
+      if (k.startsWith(layer)) this.tileCache.delete(k);
+    }
     const isRisk = layer === 'risk';
     const img = rasterize(layer, grid, {
       width: rec.canvas.width,
@@ -369,12 +389,16 @@ export class GoogleMapEngine {
     }
     if (this.wind) {
       this.wind.canvas.style.opacity = this.layerVis.wind ? '1' : '0';
-      if (this.layerVis.wind) this.drawWind();
+      if (this.layerVis.wind) {
+        this.startWindLoop();
+      } else {
+        this.stopWindLoop();
+      }
     }
   }
 
   /* ------------------------------------------------------------------ */
-  /* Wind Particles                                                     */
+  /* Air Flow Streamline Simulation Engine                              */
   /* ------------------------------------------------------------------ */
   setWindField(vec: VecField) {
     if (this.destroyed) return;
@@ -390,56 +414,143 @@ export class GoogleMapEngine {
       this.wind = { canvas, field: null };
     }
     this.wind.field = vec;
-    this.drawWind();
+    if (this.layerVis.wind) this.startWindLoop();
+  }
+
+  private initWindParticles() {
+    this.windParticles = [];
+    const count = 360;
+    for (let i = 0; i < count; i++) {
+      this.windParticles.push(this.spawnWindParticle(true));
+    }
+  }
+
+  private spawnWindParticle(randomAge = false) {
+    const lon = BOUNDS.lon0 + Math.random() * (BOUNDS.lon1 - BOUNDS.lon0);
+    const lat = BOUNDS.lat0 + Math.random() * (BOUNDS.lat1 - BOUNDS.lat0);
+    const maxAge = 40 + Math.floor(Math.random() * 45);
+    const age = randomAge ? Math.floor(Math.random() * maxAge) : 0;
+    return { lon, lat, age, maxAge, speed: 0, trail: [] as { x: number; y: number }[] };
+  }
+
+  private startWindLoop() {
+    if (this.windRafId) return;
+    if (!this.windParticles.length) this.initWindParticles();
+
+    const loop = () => {
+      if (this.destroyed) return;
+      if (!this.layerVis.wind || !this.wind?.field || !this.map) {
+        this.windRafId = 0;
+        return;
+      }
+      this.stepWindParticles();
+      this.windRafId = requestAnimationFrame(loop);
+    };
+    this.windRafId = requestAnimationFrame(loop);
+  }
+
+  private stopWindLoop() {
+    if (this.windRafId) {
+      cancelAnimationFrame(this.windRafId);
+      this.windRafId = 0;
+    }
+    if (this.wind?.canvas) {
+      const ctx = this.wind.canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, this.wind.canvas.width, this.wind.canvas.height);
+    }
   }
 
   private drawWind() {
+    if (this.layerVis.wind && this.wind?.field) {
+      this.startWindLoop();
+    } else {
+      this.stopWindLoop();
+    }
+  }
+
+  private stepWindParticles() {
     const w = this.wind;
     const m = this.map;
-    const api = this.api;
-    if (!w || !m || !api || !w.field || !this.layerVis.wind) return;
+    if (!w || !m || !w.field) return;
+
     const rect = m.getDiv().getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    w.canvas.width = Math.round(rect.width * dpr);
-    w.canvas.height = Math.round(rect.height * dpr);
-    const ctx = w.canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, w.canvas.width, w.canvas.height);
-    ctx.strokeStyle = 'rgba(226,240,255,0.45)';
-    ctx.lineWidth = Math.max(0.7, 1.1 * dpr);
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(rect.height * dpr);
+
+    if (w.canvas.width !== targetW || w.canvas.height !== targetH) {
+      w.canvas.width = targetW;
+      w.canvas.height = targetH;
+    }
+
+    const ctx = w.canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
 
     const b = m.getBounds();
-    if (!b) return;
-    const sw = b.getSouthWest();
-    const ne = b.getNorthEast();
+    const sw = b?.getSouthWest();
+    const ne = b?.getNorthEast();
+    const minLon = sw ? sw.lng() - 1 : BOUNDS.lon0;
+    const maxLon = ne ? ne.lng() + 1 : BOUNDS.lon1;
+    const minLat = sw ? sw.lat() - 1 : BOUNDS.lat0;
+    const maxLat = ne ? ne.lat() + 1 : BOUNDS.lat1;
 
-    const field = w.field;
-    const fw = NX;
-    const fh = NY;
-    const step = 2;
-    ctx.beginPath();
-    for (let y = 0; y < fh; y += step) {
-      for (let x = 0; x < fw; x += step) {
-        const i = y * fw + x;
-        const u = field.u[i];
-        const vv = field.v[i];
-        if (u === undefined || vv === undefined) continue;
-        const sp = field.speed[i];
-        if (sp < 1.2) continue;
-        const lon = BOUNDS.lon0 + (x / (fw - 1)) * (BOUNDS.lon1 - BOUNDS.lon0);
-        const lat = BOUNDS.lat1 - (y / (fh - 1)) * (BOUNDS.lat1 - BOUNDS.lat0);
-        if (lon < sw.lng() || lon > ne.lng() || lat < sw.lat() || lat > ne.lat()) continue;
-        const p = this.latLngToDivPixel(lat, lon);
-        if (!p) continue;
-        const len = clamp(sp * 1.5, 5, 26) * dpr;
-        const ang = Math.atan2(vv, u);
-        const ax = p.x * dpr;
-        const ay = p.y * dpr;
-        ctx.moveTo(ax - (Math.cos(ang) * len) / 2, ay - (Math.sin(ang) * len) / 2);
-        ctx.lineTo(ax + (Math.cos(ang) * len) / 2, ay + (Math.sin(ang) * len) / 2);
+    for (const p of this.windParticles) {
+      p.age++;
+      if (p.age > p.maxAge || p.lon < minLon || p.lon > maxLon || p.lat < minLat || p.lat > maxLat) {
+        Object.assign(p, this.spawnWindParticle(false));
+        continue;
       }
+
+      const [u, v] = sampleVec(w.field, p.lon, p.lat);
+      const sp = Math.hypot(u, v);
+      p.speed = sp;
+
+      if (sp < 0.8) {
+        p.age += 2;
+        continue;
+      }
+
+      const cosLat = Math.max(0.2, Math.cos((p.lat * Math.PI) / 180));
+      const stepFactor = 0.0034;
+      p.lon += (u * stepFactor) / cosLat;
+      p.lat += v * stepFactor;
+
+      const pt = this.latLngToDivPixel(p.lat, p.lon);
+      if (!pt) {
+        p.trail = [];
+        continue;
+      }
+
+      p.trail.push({ x: pt.x, y: pt.y });
+      if (p.trail.length > 7) p.trail.shift();
+      if (p.trail.length < 2) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(p.trail[0].x, p.trail[0].y);
+      for (let i = 1; i < p.trail.length; i++) {
+        ctx.lineTo(p.trail[i].x, p.trail[i].y);
+      }
+
+      const alpha = Math.sin((p.age / p.maxAge) * Math.PI) * 0.85;
+      let strokeColor: string;
+      if (sp > 45) {
+        strokeColor = `rgba(244, 63, 94, ${alpha.toFixed(2)})`;
+      } else if (sp > 25) {
+        strokeColor = `rgba(129, 140, 248, ${alpha.toFixed(2)})`;
+      } else {
+        strokeColor = `rgba(56, 189, 248, ${(alpha * 0.82).toFixed(2)})`;
+      }
+
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = Math.min(2.4, 0.9 + (sp / 50) * 1.2);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
     }
-    ctx.stroke();
   }
 
   /* ------------------------------------------------------------------ */
@@ -492,6 +603,8 @@ export class GoogleMapEngine {
         this.userLocationMarkerEl.style.transform = `translate3d(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px, 0) translate(-50%, -50%)`;
       }
     }
+
+    this.drawFlowingCorridors();
   }
 
   /**
@@ -527,8 +640,10 @@ export class GoogleMapEngine {
       }
 
       if (anyMoving) {
+        this.drawFlowingCorridors();
         this.animRafId = requestAnimationFrame(tick);
       } else {
+        this.drawFlowingCorridors();
         this.animRafId = 0;
       }
     };
@@ -674,7 +789,7 @@ export class GoogleMapEngine {
         el.style.left = '0';
         el.style.top = '0';
         el.style.pointerEvents = 'auto';
-        el.innerHTML = `<span class="ev-pulse"></span><span class="ev-core"></span><span class="ev-tip hidden"></span>`;
+        el.innerHTML = `<span class="ev-blur"></span><span class="ev-pulse"></span><span class="ev-core"></span><span class="ev-tip hidden"></span>`;
 
         el.addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -874,10 +989,10 @@ export class GoogleMapEngine {
           const poly = new api.Polygon({
             paths: ring.map(([lon, lat]) => new api.LatLng(lat, lon)),
             strokeColor: '#818cf8',
-            strokeOpacity: isSel ? 0.4 : 0.2,
-            strokeWeight: 1.2,
+            strokeOpacity: 0,
+            strokeWeight: 0,
             fillColor: '#818cf8',
-            fillOpacity: isSel ? 0.16 : 0.08,
+            fillOpacity: isSel ? 0.07 : 0.03,
             clickable: false,
             zIndex: isSel ? 30 : 10,
           });
@@ -922,6 +1037,112 @@ export class GoogleMapEngine {
           this.etaDots.push(mk);
         }
       }
+    }
+    this.drawFlowingCorridors();
+  }
+
+  /**
+   * Renders the flowing uncertainty corridor shape onto the blurred canvas layer.
+   * Creates an organic, glowing, diffused meteorological plume extending along the forecast track.
+   */
+  private drawFlowingCorridors() {
+    const canvas = this.corridorCanvas;
+    const m = this.map;
+    const o = this.evOpts;
+    if (!canvas || !m || !this.api || !o) return;
+
+    const rect = m.getDiv().getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(rect.height * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    if (!o.showCorridors) return;
+
+    const zoom = m.getZoom() ?? 5;
+    for (const e of this.evEvents) {
+      if (o.hiddenIds.has(e.id)) continue;
+      const isSel = e.id === o.selectedId;
+      const want = isSel || e.severity === 'EXTREME';
+      if (!want || e.predicted.length < 2) continue;
+
+      const cat = CAT_META[e.category] || { color: '#818cf8' };
+      const sev = SEV_META[e.severity] || { color: '#ef4444' };
+      const baseColor = isSel ? cat.color : sev.color;
+
+      const corridorPts = [
+        { lat: e.lat, lon: e.lon, r: e.uncertaintyKm * 0.4 },
+        ...e.predicted.map((k) => ({
+          lat: k.lat,
+          lon: k.lon,
+          r: e.uncertaintyKm * (0.4 + 0.65 * clamp((k.t - o.t) / Math.max(1, e.skilledUntilH * 1.3), 0, 1.4)),
+        })),
+      ];
+
+      const screenPts: { x: number; y: number; r: number }[] = [];
+      for (const pt of corridorPts) {
+        const p = this.latLngToDivPixel(pt.lat, pt.lon);
+        if (!p) continue;
+        const mpp = (156543.03392 * Math.cos((pt.lat * Math.PI) / 180)) / Math.pow(2, zoom);
+        const rPx = Math.max(8, (pt.r * 1000) / Math.max(1e-6, mpp));
+        screenPts.push({ x: p.x, y: p.y, r: rPx });
+      }
+
+      if (screenPts.length < 2) continue;
+
+      const left: [number, number][] = [];
+      const right: [number, number][] = [];
+      for (let i = 0; i < screenPts.length; i++) {
+        const a = screenPts[Math.max(0, i - 1)];
+        const b = screenPts[Math.min(screenPts.length - 1, i + 1)];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const cur = screenPts[i];
+        left.push([cur.x + nx * cur.r, cur.y + ny * cur.r]);
+        right.push([cur.x - nx * cur.r, cur.y - ny * cur.r]);
+      }
+
+      // Outer flowing blurred envelope
+      ctx.save();
+      ctx.beginPath();
+      left.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      right.reverse().forEach(([x, y]) => ctx.lineTo(x, y));
+      ctx.closePath();
+
+      const head = screenPts[0];
+      const tail = screenPts[screenPts.length - 1];
+      const grad = ctx.createLinearGradient(head.x, head.y, tail.x, tail.y);
+      grad.addColorStop(0, baseColor);
+      grad.addColorStop(0.35, isSel ? '#818cf8' : baseColor);
+      grad.addColorStop(0.75, '#6366f1');
+      grad.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = isSel ? 0.6 : 0.38;
+      ctx.fill();
+
+      // Flowing luminous spine stream
+      ctx.beginPath();
+      screenPts.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = isSel ? 10 : 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = isSel ? 0.5 : 0.28;
+      ctx.stroke();
+
+      ctx.restore();
     }
   }
 

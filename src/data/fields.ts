@@ -127,7 +127,13 @@ function background(layer: LayerId, lon: number, lat: number, t: number): number
 }
 
 /** Build the full grid for a layer at time t. */
+const GRID_CACHE = new Map<string, Grid>();
 export function buildGrid(layer: LayerId, t: number, events: WeatherEvent[]): Grid {
+  const roundedT = Math.round(t * 2) / 2;
+  const key = `${layer}_${roundedT}_${events.length}_${events[0]?.id ?? ''}_${events[0]?.lat.toFixed(1) ?? ''}`;
+  const hit = GRID_CACHE.get(key);
+  if (hit) return hit;
+
   const g = new Float32Array(NX * NY);
   const scale = LAYERS[layer].scale[1];
   for (let iy = 0; iy < NY; iy++) {
@@ -165,6 +171,8 @@ export function buildGrid(layer: LayerId, t: number, events: WeatherEvent[]): Gr
   if (layer === 'anomaly' || layer === 'risk') {
     for (let i = 0; i < g.length; i++) g[i] = clamp(g[i], 0, 1);
   }
+  if (GRID_CACHE.size > 120) GRID_CACHE.clear();
+  GRID_CACHE.set(key, g);
   return g;
 }
 
@@ -288,6 +296,48 @@ export interface RasterizeOpts {
   solid?: { color: string; alpha: number };
 }
 
+interface ProjCache {
+  w: number;
+  h: number;
+  x0: Int32Array;
+  x1: Int32Array;
+  tx: Float32Array;
+  y0_NX: Int32Array;
+  y1_NX: Int32Array;
+  ty: Float32Array;
+}
+let projCache: ProjCache | null = null;
+function getProjCache(w: number, h: number): ProjCache {
+  if (projCache && projCache.w === w && projCache.h === h) return projCache;
+  const dLon = BOUNDS.lon1 - BOUNDS.lon0;
+  const x0 = new Int32Array(w);
+  const x1 = new Int32Array(w);
+  const tx = new Float32Array(w);
+  for (let x = 0; x < w; x++) {
+    const lon = BOUNDS.lon0 + (x / (w - 1)) * dLon;
+    const fx = clamp(((lon - BOUNDS.lon0) / dLon) * (NX - 1), 0, NX - 1);
+    const x_0 = Math.floor(fx);
+    x0[x] = x_0;
+    x1[x] = Math.min(NX - 1, x_0 + 1);
+    tx[x] = fx - x_0;
+  }
+
+  const y0_NX = new Int32Array(h);
+  const y1_NX = new Int32Array(h);
+  const ty = new Float32Array(h);
+  for (let y = 0; y < h; y++) {
+    const lat = invMercY(Y1 + (y / (h - 1)) * (Y0 - Y1));
+    const fy = clamp(((lat - BOUNDS.lat0) / (BOUNDS.lat1 - BOUNDS.lat0)) * (NY - 1), 0, NY - 1);
+    const y_0 = Math.floor(fy);
+    y0_NX[y] = y_0 * NX;
+    y1_NX[y] = Math.min(NY - 1, y_0 + 1) * NX;
+    ty[y] = fy - y_0;
+  }
+
+  projCache = { w, h, x0, x1, tx, y0_NX, y1_NX, ty };
+  return projCache;
+}
+
 /**
  * Rasterise a grid into an ImageData whose vertical axis is uniform in
  * web-mercator space, so features stay geographically aligned on the map.
@@ -297,43 +347,58 @@ export function rasterize(layer: LayerId, grid: Grid, opts: RasterizeOpts): Imag
   const img = new ImageData(w, h);
   const data = img.data;
   const meta = LAYERS[layer];
-  const [vmin, vmax] = meta.scale;
+  const [, vmax] = meta.scale;
   const lut = lutFor(layer);
   const lutMin = RAMPS[meta.rampKey][0][0] * (vmax / RAMPS[meta.rampKey][RAMPS[meta.rampKey].length - 1][0]);
-  const norm = (v: number) => clamp((v - lutMin) / (vmax - lutMin), 0, 1);
+  const normFactor = 1 / Math.max(1e-6, vmax - lutMin);
   const cutoff = opts.cutoff ?? 0.04;
   const aMul = opts.alpha ?? 0.82;
-  const dLon = BOUNDS.lon1 - BOUNDS.lon0;
 
   const solid = opts.solid;
   const srgb = solid ? solid.color : null;
   const sMul = solid ? solid.alpha : 0;
+  const solidColor = srgb ? parseInt(srgb.slice(1), 16) : 0;
+  const cr = (solidColor >> 16) & 255;
+  const cg = (solidColor >> 8) & 255;
+  const cb = solidColor & 255;
+
+  const proj = getProjCache(w, h);
+  const { x0, x1, tx, y0_NX, y1_NX, ty } = proj;
 
   for (let y = 0; y < h; y++) {
-    const lat = invMercY(Y1 + (y / (h - 1)) * (Y0 - Y1));
+    const r0 = y0_NX[y];
+    const r1 = y1_NX[y];
+    const tyVal = ty[y];
+    const invTy = 1 - tyVal;
+    let o = y * w * 4;
+
     for (let x = 0; x < w; x++) {
-      const lon = BOUNDS.lon0 + (x / (w - 1)) * dLon;
-      const v = sampleGrid(grid, lon, lat);
-      const n = norm(v);
-      const o = (y * w + x) * 4;
+      const c0 = x0[x];
+      const c1 = x1[x];
+      const txVal = tx[x];
+
+      const v = (grid[r0 + c0] * (1 - txVal) + grid[r0 + c1] * txVal) * invTy +
+                (grid[r1 + c0] * (1 - txVal) + grid[r1 + c1] * txVal) * tyVal;
+      const n = clamp((v - lutMin) * normFactor, 0, 1);
+
       let a: number;
       if (srgb) {
-        const shade = 0.55 + 0.45 * n;
-        const base = aMul * sMul * shade;
-        a = base;
+        a = aMul * sMul * (0.55 + 0.45 * n);
       } else {
         a = aMul * smoothAlpha(n, cutoff);
       }
+
       if (a <= 0.004) {
         data[o + 3] = 0;
+        o += 4;
         continue;
       }
+
       if (srgb) {
-        const c = parseInt(srgb.slice(1), 16);
         const sh = 0.5 + 0.5 * n;
-        data[o] = ((c >> 16) & 255) * sh;
-        data[o + 1] = ((c >> 8) & 255) * sh;
-        data[o + 2] = (c & 255) * sh;
+        data[o] = cr * sh;
+        data[o + 1] = cg * sh;
+        data[o + 2] = cb * sh;
       } else {
         const li = Math.round(n * 255) * 4;
         data[o] = lut[li];
@@ -341,6 +406,7 @@ export function rasterize(layer: LayerId, grid: Grid, opts: RasterizeOpts): Imag
         data[o + 2] = lut[li + 2];
       }
       data[o + 3] = Math.round(clamp(a, 0, 1) * 255);
+      o += 4;
     }
   }
   return img;

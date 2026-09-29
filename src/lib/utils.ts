@@ -130,7 +130,7 @@ export const fmtArea = (km2: number) =>
  * severity / category metadata (single source of truth for colours)   *
  * ------------------------------------------------------------------ */
 export const SEV_META: Record<Severity, { label: string; color: string; bg: string; border: string; dot: string; rank: number }> = {
-  NORMAL: { label: 'NORMAL', color: '#22c55e', bg: 'rgba(34,197,94,0.13)', border: 'rgba(34,197,94,0.38)', dot: '●', rank: 0 },
+  NORMAL: { label: 'NORMAL', color: '#38bdf8', bg: 'rgba(56,189,248,0.13)', border: 'rgba(56,189,248,0.38)', dot: '●', rank: 0 },
   MODERATE: { label: 'MODERATE', color: '#eab308', bg: 'rgba(234,179,8,0.13)', border: 'rgba(234,179,8,0.38)', dot: '●', rank: 1 },
   HIGH: { label: 'HIGH', color: '#f97316', bg: 'rgba(249,115,22,0.13)', border: 'rgba(249,115,22,0.4)', dot: '●', rank: 2 },
   EXTREME: { label: 'EXTREME', color: '#ef4444', bg: 'rgba(239,68,68,0.14)', border: 'rgba(239,68,68,0.45)', dot: '●', rank: 3 },
@@ -139,7 +139,7 @@ export const SEV_META: Record<Severity, { label: string; color: string; bg: stri
 export const CAT_META: Record<Category, { label: string; short: string; icon: string; color: string; unit: string }> = {
   rainfall: { label: 'Extreme Rainfall', short: 'Rainfall', icon: 'Rain', color: '#38bdf8', unit: 'mm/day' },
   cyclone: { label: 'Cyclone / Tropical Storm', short: 'Cyclone', icon: 'Cyclone', color: '#a78bfa', unit: 'kt' },
-  wind: { label: 'Severe Wind', short: 'Wind', icon: 'Wind', color: '#5eead4', unit: 'km/h' },
+  wind: { label: 'Severe Wind', short: 'Wind', icon: 'Wind', color: '#818cf8', unit: 'km/h' },
   heat: { label: 'Heat Anomaly', short: 'Heat', icon: 'Heat', color: '#fb7185', unit: '°C' },
   cold: { label: 'Cold Anomaly', short: 'Cold', icon: 'Cold', color: '#60a5fa', unit: '°C' },
   pressure: { label: 'Low-Pressure System', short: 'Pressure', icon: 'Pressure', color: '#c084fc', unit: 'hPa' },
@@ -166,13 +166,13 @@ export function severityOf(score: number): Severity {
   return 'NORMAL';
 }
 
-/** Diverging + sequential scientific colour ramps, returned as [r,g,b] stops. */
+/** Diverging + sequential scientific colour ramps, returned as [r,g,b] stops (no green). */
 export type Stop = [number, number, number, number];
 
 export const RAMPS: Record<string, Stop[]> = {
   temp: [
     [-6, 49, 54, 149], [-3, 69, 117, 180], [-1, 116, 173, 209], [0, 171, 217, 233],
-    [1, 224, 243, 248], [2.2, 255, 255, 191], [4, 254, 224, 144], [6, 253, 174, 97],
+    [1, 224, 243, 248], [2.2, 255, 237, 180], [4, 254, 210, 130], [6, 253, 174, 97],
     [8, 244, 109, 67], [10, 215, 48, 39], [13, 165, 0, 38],
   ],
   rain: [
@@ -180,24 +180,24 @@ export const RAMPS: Record<string, Stop[]> = {
     [36, 79, 30, 160], [55, 140, 30, 140], [75, 190, 40, 130], [100, 230, 60, 120],
   ],
   wind: [
-    [0, 90, 130, 160], [8, 40, 150, 190], [18, 30, 200, 200], [30, 60, 220, 140],
-    [45, 200, 220, 60], [60, 250, 160, 40], [80, 240, 60, 60],
+    [0, 30, 58, 138], [15, 14, 165, 233], [30, 56, 189, 248], [45, 129, 140, 248],
+    [60, 245, 158, 11], [80, 239, 68, 68],
   ],
   pressure: [
     [-18, 30, 60, 150], [-10, 60, 130, 200], [-3, 150, 200, 230], [0, 220, 235, 240],
     [3, 250, 220, 180], [10, 240, 150, 90], [18, 200, 60, 60],
   ],
   humidity: [
-    [-30, 160, 110, 40], [-15, 220, 180, 100], [0, 200, 210, 200], [12, 120, 200, 190],
-    [25, 50, 150, 220], [40, 30, 90, 200],
+    [-30, 160, 110, 40], [-15, 220, 180, 100], [0, 200, 210, 230], [12, 100, 180, 240],
+    [25, 30, 130, 220], [40, 30, 70, 180],
   ],
   anomaly: [
-    [0.05, 40, 90, 120], [0.25, 30, 170, 150], [0.45, 190, 215, 60], [0.65, 245, 160, 40],
-    [0.82, 235, 70, 60], [0.95, 190, 30, 120],
+    [0.05, 30, 58, 138], [0.25, 14, 165, 233], [0.48, 245, 158, 11], [0.72, 239, 68, 68],
+    [0.92, 190, 24, 93],
   ],
   risk: [
-    [0.05, 25, 70, 90], [0.22, 25, 150, 120], [0.42, 170, 200, 60], [0.6, 245, 150, 40],
-    [0.78, 235, 70, 55], [0.9, 200, 30, 60], [1, 140, 20, 90],
+    [0.05, 30, 41, 59], [0.22, 2, 132, 199], [0.45, 234, 88, 12], [0.75, 220, 38, 38],
+    [1.0, 147, 51, 234],
   ],
 };
 
