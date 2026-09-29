@@ -1,0 +1,8 @@
+{
+  "name": "SIHTRACK - Extreme Weather Intelligence",
+  "description": "AI-Driven Spatio-Temporal Tracking of Extreme Weather Anomalies in Medium-Range Forecasts (SIH26078)",
+  "prompt": "SIHTRACK Extreme Weather Intelligence & Tracking Platform",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
