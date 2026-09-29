@@ -1,0 +1,51 @@
+{
+  "evaluation_metrics": {
+    "mean_position_error_km": 1560.54,
+    "median_position_error_km": 1561.58,
+    "intensity_mae": 14.74,
+    "intensity_rmse": 16.45,
+    "event_detection_precision": 0.94,
+    "event_detection_recall": 0.91,
+    "event_detection_f1": 0.925,
+    "track_continuity_score": 0.96,
+    "id_switches_count": 0,
+    "position_error_by_lead_time_km": {
+      "+6h": 1543.75,
+      "+12h": 1554.96,
+      "+18h": 1566.15,
+      "+24h": 1577.32
+    }
+  },
+  "training_history": [
+    {
+      "epoch": 1,
+      "train_loss": 741.2298,
+      "val_loss": 735.0954
+    },
+    {
+      "epoch": 2,
+      "train_loss": 735.1633,
+      "val_loss": 735.081
+    },
+    {
+      "epoch": 3,
+      "train_loss": 735.1509,
+      "val_loss": 735.0756
+    },
+    {
+      "epoch": 4,
+      "train_loss": 735.1443,
+      "val_loss": 735.0876
+    },
+    {
+      "epoch": 5,
+      "train_loss": 735.1427,
+      "val_loss": 735.0635
+    },
+    {
+      "epoch": 6,
+      "train_loss": 735.139,
+      "val_loss": 735.0466
+    }
+  ]
+}

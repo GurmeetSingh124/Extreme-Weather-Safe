@@ -1,0 +1,259 @@
+/* ====================================================================
+   REDESIGN THEME
+   Tokens, glass surfaces, event drawer, timeline, marker and corridor.
+   Loaded once from main.tsx.
+
+   These class names are namespaced (.sih-*, .drawer, .tl, .glass) so they
+   layer on top of the existing Tailwind design system instead of
+   replacing it — the app keeps its current look and gains the redesign's
+   track, corridor and drawer treatments.
+   ==================================================================== */
+
+:root {
+  --sih-bg: #0b0f17;
+  --sih-surface: #141b29;
+  --sih-map: #0e1420;
+  --sih-text: #e6eaf2;
+  --sih-muted: #8b95a7;
+  --sih-line: rgba(255, 255, 255, 0.09);
+  --sih-primary: #4c8dff;
+  --sih-primary-ink: #fff;
+  --sih-forecast: #9aa6ff;
+  --sih-ai: #a78bfa;
+  --sih-sev-normal: #22c55e;
+  --sih-sev-moderate: #eab308;
+  --sih-sev-high: #f97316;
+  --sih-sev-extreme: #ef4444;
+  --sih-glass: rgba(17, 24, 39, 0.82);
+  --sih-font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root[data-theme='light'] {
+  --sih-bg: #f5f7fb;
+  --sih-surface: #ffffff;
+  --sih-map: #eef1f6;
+  --sih-text: #151b28;
+  --sih-muted: #5b667a;
+  --sih-line: rgba(20, 30, 50, 0.12);
+  --sih-primary: #1d5fd6;
+  --sih-forecast: #4b57c9;
+  --sih-ai: #6d4fd6;
+  --sih-glass: rgba(255, 255, 255, 0.9);
+}
+
+/* ------------------------------------------------------------------ */
+/* surfaces + controls                                                */
+/* ------------------------------------------------------------------ */
+.sih-glass {
+  background: var(--sih-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--sih-line);
+  border-radius: 14px;
+}
+
+.sih-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9px;
+  border: 1px solid var(--sih-line);
+  background: transparent;
+  color: var(--sih-text);
+  font: 500 14px var(--sih-font);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.sih-btn:hover { background: color-mix(in srgb, var(--sih-text) 6%, transparent); }
+.sih-btn:focus-visible { outline: 2px solid var(--sih-primary); outline-offset: 2px; }
+.sih-btn-primary { background: var(--sih-primary); border-color: var(--sih-primary); color: var(--sih-primary-ink); font-weight: 600; }
+.sih-btn-primary:hover { background: color-mix(in srgb, var(--sih-primary) 86%, #000); }
+
+.sih-pill {
+  font: 600 11px var(--sih-font);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.sih-muted { color: var(--sih-muted); }
+
+.sih-chip {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--sih-muted);
+  font: 500 11px ui-monospace, monospace;
+  cursor: pointer;
+}
+.sih-chip:hover { color: var(--sih-text); }
+.sih-chip.on { background: color-mix(in srgb, var(--sih-primary) 20%, transparent); color: var(--sih-primary); }
+.sih-chip:focus-visible { outline: 2px solid var(--sih-primary); outline-offset: 1px; }
+
+/* ------------------------------------------------------------------ */
+/* event drawer — the single detail UI                                */
+/* ------------------------------------------------------------------ */
+.sih-drawer {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 100px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: sih-drawer-in 0.22s ease-out;
+  z-index: 25;
+}
+@keyframes sih-drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.sih-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--sih-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sih-stat-grid > div {
+  background: var(--sih-surface);
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--sih-muted);
+}
+.sih-stat-grid b { display: block; font-size: 20px; color: var(--sih-text); font-weight: 600; line-height: 1.2; }
+
+.sih-drawer details { border-top: 1px solid var(--sih-line); padding: 8px 0; }
+.sih-drawer summary {
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--sih-muted);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sih-drawer summary::-webkit-details-marker { display: none; }
+.sih-drawer summary:focus-visible { outline: 2px solid var(--sih-primary); outline-offset: 2px; }
+.sih-frow { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 13px; }
+.sih-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 12px; color: var(--sih-muted); }
+.sih-kv b { color: var(--sih-text); font-weight: 500; }
+.sih-ai-box {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sih-ai) 12%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sih-alert-box {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--sih-sev-extreme) 12%, transparent);
+}
+
+/* ------------------------------------------------------------------ */
+/* map marker + corridor                                              */
+/* ------------------------------------------------------------------ */
+.sih-marker {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--sih-surface);
+  border: 2px solid var(--c);
+  color: var(--c);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 4;
+}
+.sih-marker.sel {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 30%, transparent);
+  animation: sih-pulse 2.4s ease-in-out infinite;
+}
+@keyframes sih-pulse {
+  50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--c) 8%, transparent); }
+}
+
+/* Only the corridor canvas is blurred — never the map itself. */
+.sih-corridor {
+  position: absolute;
+  pointer-events: none;
+  filter: blur(12px);
+  animation: sih-breathe 4s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes sih-breathe { 50% { opacity: 0.65; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sih-marker.sel, .sih-corridor, .sih-drawer { animation: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* timeline                                                           */
+/* ------------------------------------------------------------------ */
+.sih-tl {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 16px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 18px;
+  z-index: 26;
+}
+.sih-tl-track { position: relative; flex: 1; height: 44px; min-width: 0; }
+.sih-tl input[type='range'] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 22px;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--sih-primary);
+  cursor: pointer;
+}
+.sih-tl-now { position: absolute; top: 2px; height: 40px; border-left: 1.5px solid var(--sih-text); pointer-events: none; }
+.sih-tl-now span { position: absolute; left: 6px; top: 0; font: 600 10px var(--sih-font); letter-spacing: 0.1em; }
+
+@media (max-width: 640px) {
+  .sih-tl { left: 8px; right: 8px; height: 58px; gap: 8px; padding: 0 10px; }
+  .sih-tl .sih-jumps { display: none; }
+  .sih-drawer { top: auto; bottom: 84px; left: 8px; right: 8px; width: auto; max-height: 58vh; }
+}
+
+/* ------------------------------------------------------------------ */
+/* event card                                                        */
+/* ------------------------------------------------------------------ */
+.sih-ecard {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--sih-surface);
+  border: 1px solid var(--sih-line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  color: var(--sih-text);
+  cursor: pointer;
+  font-family: var(--sih-font);
+  width: 100%;
+}
+.sih-ecard:hover { border-color: var(--sih-primary); }
+.sih-ecard:focus-visible { outline: 2px solid var(--sih-primary); outline-offset: 2px; }

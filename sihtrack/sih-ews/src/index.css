@@ -1,0 +1,592 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --focus: rgba(77, 196, 255, 0.75);
+  --hairline: rgba(148, 176, 224, 0.14);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #070b14;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #eef3fb;
+  overflow: hidden;
+  font-feature-settings: 'cv11', 'ss01';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- focus: visible, consistent, keyboard only ---------- */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------- scrollbars ---------- */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 176, 224, 0.2);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 176, 224, 0.38);
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@layer components {
+  /* ---------- surfaces: clean cards, subtle depth, no glassmorphism ---------- */
+  .card {
+    @apply rounded-xl border border-edge bg-ink-850/95 shadow-card backdrop-blur-[2px];
+  }
+  .card-flat {
+    @apply rounded-xl border border-edge bg-ink-900;
+  }
+  .glass {
+    @apply rounded-xl border border-edge bg-ink-900/95 shadow-pop backdrop-blur-md;
+  }
+  .glass-soft {
+    @apply rounded-lg border border-edge bg-ink-850/85 backdrop-blur-sm;
+  }
+
+  .panel-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-txt-lo;
+  }
+  .mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .hairline {
+    border-color: var(--hairline);
+  }
+
+  .btn {
+    @apply inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-lg border border-edge bg-ink-800/80 px-2.5 py-1.5 text-[12px] font-medium text-txt-mid transition-colors duration-150 hover:border-edge2 hover:bg-ink-750 hover:text-txt-hi active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg border border-brand-500/60 bg-brand-500/20 px-4 py-2.5 text-[13px] font-semibold text-brand-300 transition-colors duration-150 hover:border-brand-400/80 hover:bg-brand-500/30 active:scale-[0.99];
+  }
+  .btn-active {
+    @apply border-brand-500/55 bg-brand-500/16 text-brand-300;
+  }
+  .btn-icon {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-edge bg-ink-850/95 text-txt-mid shadow-card transition-colors duration-150 hover:border-edge2 hover:bg-ink-750 hover:text-txt-hi active:scale-95;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+  }
+  .skel {
+    background: linear-gradient(90deg, rgba(148, 176, 224, 0.05) 0%, rgba(148, 176, 224, 0.14) 50%, rgba(148, 176, 224, 0.05) 100%);
+    background-size: 500px 100%;
+    @apply animate-shimmer rounded;
+  }
+  .grid-bg {
+    background-image: linear-gradient(rgba(148, 176, 224, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 176, 224, 0.045) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  .kbd {
+    @apply rounded border border-edge bg-ink-800 px-1 py-px font-mono text-[10px] text-txt-mid;
+  }
+}
+
+/* ==========================================================================
+   MapLibre
+   ========================================================================== */
+.maplibregl-map {
+  font-family: Inter, sans-serif;
+  background: #0a1120;
+}
+.maplibregl-canvas:focus {
+  outline: none;
+}
+.maplibregl-canvas-container {
+  border-radius: inherit;
+}
+.maplibregl-ctrl-attrib {
+  background: rgba(7, 11, 20, 0.82) !important;
+  color: #7b8ba6 !important;
+  font-size: 10px !important;
+  border-radius: 6px 0 0 0;
+}
+.maplibregl-ctrl-attrib a {
+  color: #a8b8d2 !important;
+}
+.maplibregl-ctrl-bottom-right {
+  z-index: 5;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  min-height: 20px;
+}
+
+/* ==========================================================================
+   Event markers
+   Sized and coloured through CSS custom properties set by MapEngine:
+     --mc category colour   --ms severity colour   --msz marker size
+   ========================================================================== */
+.ev-marker {
+  position: relative;
+  width: var(--msz, 26px);
+  height: var(--msz, 26px);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  will-change: transform;
+}
+.ev-marker .ev-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--ms, #ef4444);
+  opacity: 0;
+}
+.ev-marker.ev-sel .ev-pulse {
+  animation: evPulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.ev-marker.ev-hot .ev-pulse {
+  animation: evPulse 3.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes evPulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.8;
+  }
+  75%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.ev-core {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--msz, 26px) * 0.46);
+  line-height: 1;
+  background: rgba(11, 17, 32, 0.92);
+  border: 2px solid var(--ms, #ef4444);
+  box-shadow: 0 2px 10px rgba(2, 6, 16, 0.7);
+  transition: transform 0.14s ease-out, box-shadow 0.14s ease-out;
+}
+.ev-marker:hover .ev-core {
+  transform: scale(1.14);
+}
+.ev-marker.ev-sel .ev-core {
+  transform: scale(1.16);
+  box-shadow: 0 0 0 3px rgba(77, 196, 255, 0.4), 0 4px 16px rgba(2, 6, 16, 0.8);
+  border-color: #8bdcff;
+}
+
+/* User Location Beacon Marker */
+.user-location-marker {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  will-change: transform;
+}
+.user-location-marker .user-loc-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid #38bdf8;
+  animation: userLocPulse 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+}
+@keyframes userLocPulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  70%, 100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.user-location-marker .user-loc-core {
+  position: relative;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #0284c7;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.user-location-marker .user-loc-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #e0f2fe;
+  background: rgba(11, 17, 32, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 1px 5px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* cluster marker */
+.cmarker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: rgba(11, 17, 32, 0.88);
+  border: 2px solid var(--ms, #ef4444);
+  box-shadow: 0 3px 14px rgba(2, 6, 16, 0.75);
+  cursor: pointer;
+  font-weight: 700;
+  color: #eef3fb;
+  transition: transform 0.14s ease-out;
+}
+.cmarker:hover {
+  transform: scale(1.08);
+}
+.cmarker-n {
+  font-size: 12px;
+  line-height: 1;
+}
+.cmarker-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  border: 1.5px solid #0b1120;
+}
+
+/* state labels rendered as DOM markers (no glyph server required) */
+.statelabel {
+  position: relative;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(226, 236, 250, 0.72);
+  text-shadow: 0 1px 3px rgba(3, 7, 15, 0.95), 0 0 8px rgba(3, 7, 15, 0.8);
+  user-select: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Google Maps label classes
+   Google renders Marker labels into its own pane, so these need explicit
+   layout rules rather than inheriting the MapLibre marker styles.
+   --------------------------------------------------------------------------- */
+
+/* cluster count, centred on a 1x1 transparent icon */
+.cmarker-label {
+  position: relative;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  line-height: 1;
+  text-shadow:
+    0 1px 3px rgba(3, 7, 15, 0.95),
+    0 0 10px rgba(3, 7, 15, 0.85);
+  user-select: none;
+}
+
+/* region arrival times */
+.gm-track-tag {
+  transform: translate(6px, -14px);
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(11, 18, 33, 0.88);
+  border: 1px solid rgba(148, 176, 224, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+.gm-track-now {
+  transform: translate(12px, 4px);
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: rgba(14, 165, 233, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #38bdf8;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+.gm-eta-label {
+  transform: translate(10px, -8px);
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(9, 14, 26, 0.9);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  border-radius: 5px;
+  padding: 1px 5px;
+  text-shadow: 0 1px 2px rgba(3, 7, 15, 0.9);
+  user-select: none;
+}
+
+/* Google's default control/attribution chrome, tuned for a dark shell */
+.gm-style .gm-style-iw-c {
+  background: #101827;
+  color: #eef3fb;
+  border: 1px solid rgba(148, 176, 224, 0.24);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.gm-style .gm-style-iw-d {
+  overflow: auto;
+  max-height: 220px;
+}
+
+/* hover tooltip on markers */
+.ev-tip {
+  position: absolute;
+  z-index: 3;
+  min-width: 168px;
+  max-width: 250px;
+  transform: translate(-50%, calc(-100% - 14px));
+  border-radius: 10px;
+  border: 1px solid rgba(148, 176, 224, 0.26);
+  background: rgba(9, 14, 26, 0.97);
+  box-shadow: 0 12px 34px -10px rgba(2, 6, 16, 0.9);
+  padding: 8px 10px;
+  pointer-events: none;
+  animation: fadeIn 0.12s ease-out both;
+}
+.ev-tip-name {
+  font-size: 12px;
+  font-weight: 650;
+  color: #eef3fb;
+  line-height: 1.25;
+}
+.ev-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #a8b8d2;
+}
+.ev-tip-arrow {
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid rgba(148, 176, 224, 0.26);
+  border-bottom: 1px solid rgba(148, 176, 224, 0.26);
+  background: rgba(9, 14, 26, 0.97);
+}
+
+/* wind particle canvas */
+canvas.wind-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+
+/* ==========================================================================
+   Timeline range input
+   ========================================================================== */
+input.tl-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+}
+input.tl-range::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    rgba(126, 166, 224, 0.3) 0%,
+    rgba(126, 166, 224, 0.3) var(--now, 20%),
+    rgba(34, 168, 240, 0.3) var(--now, 20%),
+    rgba(34, 168, 240, 0.3) 100%
+  );
+  border: 1px solid rgba(148, 176, 224, 0.2);
+}
+input.tl-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 9999px;
+  background: #eef3fb;
+  border: 3px solid #22a8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  transition: transform 0.12s ease-out;
+}
+input.tl-range:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+input.tl-range::-moz-range-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: rgba(126, 166, 224, 0.24);
+  border: 1px solid rgba(148, 176, 224, 0.2);
+}
+input.tl-range::-moz-range-progress {
+  height: 8px;
+  border-radius: 9999px;
+  background: rgba(34, 168, 240, 0.4);
+}
+input.tl-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #eef3fb;
+  border: 3px solid #22a8f0;
+}
+input.tl-range:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 9999px;
+}
+
+/* ==========================================================================
+   misc
+   ========================================================================== */
+.sheet-up {
+  animation: sheetUp 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.drawer-in {
+  animation: drawerIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes drawerIn {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.arch-node {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease-out, border-color 0.18s;
+}
+.arch-node:hover {
+  transform: translateY(-2px);
+}
+.flow-line {
+  background: linear-gradient(180deg, rgba(77, 196, 255, 0.55), rgba(77, 196, 255, 0.06));
+}
+.flow-dot {
+  animation: flowDown 2.4s linear infinite;
+}
+@keyframes flowDown {
+  0% {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+}
+
+table.data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(11, 17, 32, 0.97);
+}
+
+/* recharts tweaks */
+.recharts-cartesian-axis-tick text {
+  fill: #7b8ba6;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.recharts-cartesian-grid line {
+  stroke: rgba(148, 176, 224, 0.1);
+}
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+.recharts-default-tooltip {
+  background: rgba(11, 17, 32, 0.97) !important;
+  border: 1px solid rgba(148, 176, 224, 0.24) !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+}
+.recharts-pie-sector:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+/* ==========================================================================
+   Motion preferences — honour the OS, never force animation
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

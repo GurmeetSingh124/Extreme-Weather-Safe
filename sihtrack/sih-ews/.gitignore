@@ -1,0 +1,7 @@
+node_modules
+dist
+.DS_Store
+
+# local secrets — the Google Maps key lives here, never in committed source
+.env.local
+.env.*.local

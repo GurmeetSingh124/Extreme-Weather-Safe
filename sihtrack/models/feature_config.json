@@ -1,0 +1,29 @@
+{
+  "channels": [
+    "temperature_2m",
+    "precipitation",
+    "wind_u_850hpa",
+    "wind_v_850hpa",
+    "mslp",
+    "anomaly_index"
+  ],
+  "input_timesteps": 5,
+  "input_stride_hours": 6,
+  "forecast_horizon_hours": 24,
+  "spatial_grid_shape": [
+    64,
+    64
+  ],
+  "domain": {
+    "min_lat": 6.0,
+    "max_lat": 38.0,
+    "min_lon": 68.0,
+    "max_lon": 98.0
+  },
+  "target_variables": [
+    "centroid_latitude",
+    "centroid_longitude",
+    "intensity_score",
+    "extent_km2"
+  ]
+}

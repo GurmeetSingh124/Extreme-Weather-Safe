@@ -1,0 +1,13 @@
+{
+  "model_architecture": "ConvLSTMWeatherTracker",
+  "parameters_count": 229349,
+  "trained_date": "2026-09-29T11:01:23.080444Z",
+  "dataset_split": {
+    "train": "70%",
+    "validation": "15%",
+    "test": "15%"
+  },
+  "best_validation_loss": 735.0466,
+  "status": "TRAINED \u2014 BENCHMARK VALIDATED",
+  "operational_confidence_method": "Ensemble spread calibrated against empirical test position error"
+}
